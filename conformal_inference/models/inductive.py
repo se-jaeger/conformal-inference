@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from copy import deepcopy
 from logging import getLogger
 from math import ceil
-from typing import TypeVar
+from typing import Tuple, TypeVar
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
@@ -31,6 +31,31 @@ class InductiveConformalPredictor(ABC):
         self._fit = fit
         self.predictor = deepcopy(predictor)
 
+    def check_and_split_X_y(
+        self, X: ArrayLike, y: ArrayLike, calibration_size: float
+    ) -> Tuple[NDArray, NDArray, NDArray, NDArray]:
+
+        if calibration_size >= 1 or calibration_size <= 0:
+            raise ValueError("'calibration_size' not valid! Need to be: 0 < calibration_size < 1")
+
+        X = check_array(X, force_all_finite="allow-nan", estimator=self.predictor)
+
+        if self.fit:
+            X_training, X_calibration, y_training, y_calibration = train_test_split(
+                X, y, test_size=calibration_size
+            )
+
+        else:
+            X_training = X_calibration = X
+            y_training = y_calibration = y
+
+        return (
+            np.array(X_training),
+            np.array(X_calibration),
+            np.array(y_training),
+            np.array(y_calibration),
+        )
+
     @staticmethod
     def _calculate_p_values(alphas: NDArray) -> NDArray:
         n_alphas = len(alphas)
@@ -44,7 +69,7 @@ class InductiveConformalPredictor(ABC):
         pass
 
     @abstractmethod
-    def predict(self, X: ArrayLike, confidence_level: float = 0.9) -> ArrayLike:
+    def predict(self, X: ArrayLike, confidence_level: float = 0.9) -> NDArray:
         pass
 
 
@@ -66,6 +91,13 @@ class _ClassifierICP(InductiveConformalPredictor):
 
 
 class _RegressorICP(InductiveConformalPredictor):
+    """
+    Algorithm from:
+    Lei, J., G’Sell, M., Rinaldo, A., Tibshirani, R. J., & Wasserman, L. (2018).
+    Distribution-free predictive inference for regression.
+    Journal of the American Statistical Association, 113(523), 1094-1111.
+    """
+
     @staticmethod
     def _non_conformity_measure(y: NDArray, y_hat: NDArray) -> NDArray:
         return np.abs(y - y_hat)
@@ -79,20 +111,17 @@ class _RegressorICP(InductiveConformalPredictor):
     def fit(
         self, X: ArrayLike, y: ArrayLike, calibration_size: float = 0.8, weighted: bool = False
     ) -> ICP:
-        X = check_array(X, force_all_finite="allow-nan", estimator=self.predictor)
+
         self.weighted_ = weighted
 
+        X_training, X_calibration, y_training, y_calibration = self.check_and_split_X_y(
+            X, y, calibration_size
+        )
+
         if self.fit:
-            X_training, X_calibration, y_training, y_calibration = train_test_split(
-                X, y, test_size=calibration_size
-            )
             self.predictor.fit(X_training, y_training)
 
-        else:
-            X_training = X_calibration = X
-            y_training = y_calibration = y
-
-        if weighted:
+        if self.weighted_:
             self.mean_absolute_deviation_predictor = deepcopy(self.predictor)
             self.mean_absolute_deviation_predictor.fit(
                 X_training,
@@ -110,7 +139,7 @@ class _RegressorICP(InductiveConformalPredictor):
 
         return self
 
-    def predict(self, X: ArrayLike, confidence_level: float = 0.9) -> ArrayLike:
+    def predict(self, X: ArrayLike, confidence_level: float = 0.9) -> NDArray:
         check_is_fitted(
             self,
             attributes=["calibration_nonconformity_scores_", "mean_absolute_deviation_predictor"]
@@ -124,8 +153,8 @@ class _RegressorICP(InductiveConformalPredictor):
         k = ceil((n + 1) * confidence_level)
 
         one_sided_interval = self.calibration_nonconformity_scores_[
-            # `np.argpartition` promises that the k-th smallest number will be in its final sorted position
-            # all smaller on the left, all larger on the right (not necessarily sorted)
+            # `np.argpartition` promises that the k-th smallest number will be in its final
+            # sorted position smaller on the left, larger on the right (not necessarily sorted)
             np.argpartition(self.calibration_nonconformity_scores_, k)[k]
         ]
 
