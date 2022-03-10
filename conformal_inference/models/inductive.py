@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from copy import deepcopy
 from logging import getLogger
 from math import ceil
-from typing import Tuple, TypeVar
+from typing import Any, Dict, Optional, Tuple, TypeVar, Union
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
@@ -21,7 +21,7 @@ ICP = TypeVar("ICP", bound="InductiveConformalPredictor")
 # Distribution-free predictive inference for regression.
 # Journal of the American Statistical Association, 113(523), 1094-1111.
 class InductiveConformalPredictor(ABC):
-    calibration_nonconformity_scores_: NDArray
+    calibration_nonconformity_scores_: Union[NDArray, Dict[Any, NDArray]]
 
     def __init__(
         self,
@@ -56,16 +56,26 @@ class InductiveConformalPredictor(ABC):
             np.array(y_calibration),
         )
 
+    # TODO: max or min?
     @staticmethod
-    def _calculate_p_values(alphas: NDArray) -> NDArray:
-        n_alphas = len(alphas)
-        # TODO: speedup possible?
-        return np.array([(alphas >= alpha_i).sum() / n_alphas for alpha_i in alphas])
+    def get_max_nonconformity(nonconformity_scores: NDArray, confidence_level: float) -> float:
+        n = len(nonconformity_scores)
+        k = ceil((n + 1) * confidence_level)
+        max_nonconformity = nonconformity_scores[
+            # `np.argpartition` promises that the k-th smallest number will be in its final
+            # sorted position smaller on the left, larger on the right (not necessarily sorted)
+            np.argpartition(nonconformity_scores, k)[k]
+        ]
+
+        return max_nonconformity
+
+    @staticmethod
+    @abstractmethod
+    def _non_conformity_measure(y: Optional[NDArray], y_hat: NDArray) -> NDArray:
+        pass
 
     @abstractmethod
-    def fit(
-        self, X: ArrayLike, y: ArrayLike, calibration_size: float = 0.8, weighted: bool = False
-    ) -> ICP:
+    def fit(self, X: ArrayLike, y: ArrayLike, calibration_size: float = 0.2) -> ICP:
         pass
 
     @abstractmethod
@@ -74,45 +84,15 @@ class InductiveConformalPredictor(ABC):
 
 
 class _ClassifierICP(InductiveConformalPredictor):
-    def fit(
-        self, X: ArrayLike, y: ArrayLike, calibration_size: float = 0.8, weighted: bool = False
-    ) -> ICP:
-
-        return self
-
-    def predict(self, X: ArrayLike, confidence_level: float = 0.9) -> ArrayLike:
-        check_is_fitted(
-            self,
-            attributes=[
-                "todo",
-                "todo",
-            ],
-        )
-
-
-class _RegressorICP(InductiveConformalPredictor):
-    """
-    Algorithm from:
-    Lei, J., G’Sell, M., Rinaldo, A., Tibshirani, R. J., & Wasserman, L. (2018).
-    Distribution-free predictive inference for regression.
-    Journal of the American Statistical Association, 113(523), 1094-1111.
-    """
-
     @staticmethod
-    def _non_conformity_measure(y: NDArray, y_hat: NDArray) -> NDArray:
-        return np.abs(y - y_hat)
-
-    @staticmethod
-    def _non_conformity_measure_weighted(
-        y: ArrayLike, y_hat: ArrayLike, mean_absolute_deviation_hat: ArrayLike
-    ) -> NDArray:
-        return np.array(np.abs(y - y_hat) / mean_absolute_deviation_hat)
+    def _non_conformity_measure(y: Optional[NDArray], y_hat: NDArray) -> NDArray:
+        return 1 - y_hat
 
     def fit(
-        self, X: ArrayLike, y: ArrayLike, calibration_size: float = 0.8, weighted: bool = False
+        self, X: ArrayLike, y: ArrayLike, calibration_size: float = 0.2, mondrian: bool = True
     ) -> ICP:
 
-        self.weighted_ = weighted
+        self._mondrian = mondrian
 
         X_training, X_calibration, y_training, y_calibration = self.check_and_split_X_y(
             X, y, calibration_size
@@ -121,7 +101,84 @@ class _RegressorICP(InductiveConformalPredictor):
         if self.fit:
             self.predictor.fit(X_training, y_training)
 
-        if self.weighted_:
+        self.label_2_index_ = {x: index for index, x in enumerate(self.predictor.classes_)}
+        non_conformity_scores = self._non_conformity_measure(
+            y=y_calibration, y_hat=self.predictor.predict_proba(X_calibration)
+        )
+
+        if self._mondrian:
+            self.calibration_nonconformity_scores_ = {
+                label: non_conformity_scores[y_calibration == label, index]
+                for label, index in self.label_2_index_.items()
+            }
+        else:
+            self.calibration_nonconformity_scores_ = non_conformity_scores
+
+        return self
+
+    def predict(self, X: ArrayLike, confidence_level: float = 0.9) -> NDArray:
+        check_is_fitted(
+            self,
+            attributes=["calibration_nonconformity_scores_", "label_2_index_"],
+        )
+        X = check_array(X, force_all_finite="allow-nan", estimator=self.predictor)
+
+        y_hat = self.predictor.predict_proba(X)
+        nonconformity_scores = self._non_conformity_measure(None, y_hat=y_hat)
+
+        # prepare prediction sets. If class is not included in prediction, use `np.nan`
+        prediction_sets = np.empty(nonconformity_scores.shape)
+        prediction_sets[:] = np.nan
+
+        for label, index in self.label_2_index_.items():
+            if self._mondrian:
+                calibration_nonconformity_scores = self.calibration_nonconformity_scores_[label]
+            else:
+                pass  # TODO
+
+            max_nonconformity = self.get_max_nonconformity(
+                calibration_nonconformity_scores, confidence_level
+            )
+
+            prediction_sets[
+                nonconformity_scores[:, index] < max_nonconformity, index
+            ] = self.predictor.classes_[index]
+
+        return prediction_sets
+
+
+class _RegressorICP(InductiveConformalPredictor):
+    """
+    Algorithm from:
+    Lei, J., G'Sell, M., Rinaldo, A., Tibshirani, R. J., & Wasserman, L. (2018).
+    Distribution-free predictive inference for regression.
+    Journal of the American Statistical Association, 113(523), 1094-1111.
+    """
+
+    @staticmethod
+    def _non_conformity_measure(y: Optional[NDArray], y_hat: NDArray) -> NDArray:
+        return np.abs(y - y_hat)
+
+    @staticmethod
+    def _non_conformity_measure_weighted(
+        y: ArrayLike, y_hat: NDArray, mean_absolute_deviation_hat: ArrayLike
+    ) -> NDArray:
+        return np.array(np.abs(y - y_hat) / mean_absolute_deviation_hat)
+
+    def fit(
+        self, X: ArrayLike, y: ArrayLike, calibration_size: float = 0.2, weighted: bool = False
+    ) -> ICP:
+
+        self._weighted = weighted
+
+        X_training, X_calibration, y_training, y_calibration = self.check_and_split_X_y(
+            X, y, calibration_size
+        )
+
+        if self.fit:
+            self.predictor.fit(X_training, y_training)
+
+        if self._weighted:
             self.mean_absolute_deviation_predictor = deepcopy(self.predictor)
             self.mean_absolute_deviation_predictor.fit(
                 X_training,
@@ -134,7 +191,7 @@ class _RegressorICP(InductiveConformalPredictor):
             )
         else:
             self.calibration_nonconformity_scores_ = self._non_conformity_measure(
-                y_calibration, self.predictor.predict(X_calibration)
+                y=y_calibration, y_hat=self.predictor.predict(X_calibration)
             )
 
         return self
@@ -143,22 +200,17 @@ class _RegressorICP(InductiveConformalPredictor):
         check_is_fitted(
             self,
             attributes=["calibration_nonconformity_scores_", "mean_absolute_deviation_predictor"]
-            if self.weighted_
+            if self._weighted
             else ["calibration_nonconformity_scores_"],
         )
         X = check_array(X, force_all_finite="allow-nan", estimator=self.predictor)
 
         y_hat = self.predictor.predict(X)
-        n = len(self.calibration_nonconformity_scores_)
-        k = ceil((n + 1) * confidence_level)
+        one_sided_interval = self.get_max_nonconformity(
+            self.calibration_nonconformity_scores_, confidence_level
+        )
 
-        one_sided_interval = self.calibration_nonconformity_scores_[
-            # `np.argpartition` promises that the k-th smallest number will be in its final
-            # sorted position smaller on the left, larger on the right (not necessarily sorted)
-            np.argpartition(self.calibration_nonconformity_scores_, k)[k]
-        ]
-
-        if self.weighted_:
+        if self._weighted:
             mean_absolute_deviation_hat = self.mean_absolute_deviation_predictor.predict(X)
 
             y_hat_upper_bound = y_hat + mean_absolute_deviation_hat * one_sided_interval
