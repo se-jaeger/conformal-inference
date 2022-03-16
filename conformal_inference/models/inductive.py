@@ -16,11 +16,12 @@ logger = getLogger(__name__)
 ICP = TypeVar("ICP", bound="InductiveConformalPredictor")
 
 
-# Also known as: Split Conformal Prediction Sets. Source:
-# Lei, J., G’Sell, M., Rinaldo, A., Tibshirani, R. J., & Wasserman, L. (2018).
-# Distribution-free predictive inference for regression.
-# Journal of the American Statistical Association, 113(523), 1094-1111.
 class InductiveConformalPredictor(ABC):
+    """
+    Inductive Conformal Predictors are originally described in Section 4.1 of:
+        Vovk, V., Gammerman, A., & Shafer, G. (2005). Algorithmic Learning in a Random World.
+    """
+
     calibration_nonconformity_scores_: Union[NDArray, Dict[Any, NDArray]]
 
     def __init__(
@@ -84,6 +85,10 @@ class InductiveConformalPredictor(ABC):
 
 
 class _ClassifierICP(InductiveConformalPredictor):
+    """
+    TODO
+    """
+
     @staticmethod
     def _non_conformity_measure(y: Optional[NDArray], y_hat: NDArray) -> NDArray:
         return 1 - y_hat
@@ -112,7 +117,10 @@ class _ClassifierICP(InductiveConformalPredictor):
                 for label, index in self.label_2_index_.items()
             }
         else:
-            self.calibration_nonconformity_scores_ = non_conformity_scores
+            self.calibration_nonconformity_scores_ = {
+                label: non_conformity_scores[range(len(y_calibration)), index]
+                for label, index in self.label_2_index_.items()
+            }
 
         return self
 
@@ -131,13 +139,8 @@ class _ClassifierICP(InductiveConformalPredictor):
         prediction_sets[:] = np.nan
 
         for label, index in self.label_2_index_.items():
-            if self._mondrian:
-                calibration_nonconformity_scores = self.calibration_nonconformity_scores_[label]
-            else:
-                pass  # TODO
-
             max_nonconformity = self.get_max_nonconformity(
-                calibration_nonconformity_scores, confidence_level
+                self.calibration_nonconformity_scores_[label], confidence_level
             )
 
             prediction_sets[
@@ -149,10 +152,10 @@ class _ClassifierICP(InductiveConformalPredictor):
 
 class _RegressorICP(InductiveConformalPredictor):
     """
-    Algorithm from:
-    Lei, J., G'Sell, M., Rinaldo, A., Tibshirani, R. J., & Wasserman, L. (2018).
-    Distribution-free predictive inference for regression.
-    Journal of the American Statistical Association, 113(523), 1094-1111.
+    Algorithm described in:
+        Lei, J., G'Sell, M., Rinaldo, A., Tibshirani, R. J., & Wasserman, L. (2018).
+        Distribution-free predictive inference for regression.
+        Journal of the American Statistical Association, 113(523), 1094-1111.
     """
 
     @staticmethod
