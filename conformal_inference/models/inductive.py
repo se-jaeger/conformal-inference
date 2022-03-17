@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from logging import getLogger
 from math import ceil
-from typing import Any, Dict, Optional, Tuple, TypeVar, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
@@ -13,13 +15,13 @@ from sklearn.utils.validation import check_is_fitted
 
 logger = getLogger(__name__)
 
-ICP = TypeVar("ICP", bound="InductiveConformalPredictor")
-
 
 class InductiveConformalPredictor(ABC):
     """
     Inductive Conformal Predictors are originally described in Section 4.1 of:
         Vovk, V., Gammerman, A., & Shafer, G. (2005). Algorithmic Learning in a Random World.
+
+    Other literature call this approach Split Conformal Predictors.
     """
 
     calibration_nonconformity_scores_: Union[NDArray, Dict[Any, NDArray]]
@@ -57,18 +59,23 @@ class InductiveConformalPredictor(ABC):
             np.array(y_calibration),
         )
 
-    # TODO: max or min?
     @staticmethod
-    def get_max_nonconformity(nonconformity_scores: NDArray, confidence_level: float) -> float:
+    def get_max_nonconformity_score(
+        nonconformity_scores: NDArray, confidence_level: float
+    ) -> float:
+
+        # Since we use `np.argpartition` in the following: subtract 1 from `k` because it works
+        # with indices, which start at 0 not 1.
         n = len(nonconformity_scores)
-        k = ceil((n + 1) * confidence_level)
-        max_nonconformity = nonconformity_scores[
+        k = ceil((n + 1) * confidence_level) - 1
+
+        max_nonconformity_score = nonconformity_scores[
             # `np.argpartition` promises that the k-th smallest number will be in its final
             # sorted position smaller on the left, larger on the right (not necessarily sorted)
             np.argpartition(nonconformity_scores, k)[k]
         ]
 
-        return max_nonconformity
+        return max_nonconformity_score
 
     @staticmethod
     @abstractmethod
@@ -76,7 +83,9 @@ class InductiveConformalPredictor(ABC):
         pass
 
     @abstractmethod
-    def fit(self, X: ArrayLike, y: ArrayLike, calibration_size: float = 0.2) -> ICP:
+    def fit(
+        self, X: ArrayLike, y: ArrayLike, calibration_size: float = 0.2
+    ) -> InductiveConformalPredictor:
         pass
 
     @abstractmethod
@@ -89,13 +98,15 @@ class _ClassifierICP(InductiveConformalPredictor):
     TODO
     """
 
+    calibration_nonconformity_scores_: Dict[Any, NDArray]
+
     @staticmethod
     def _non_conformity_measure(y: Optional[NDArray], y_hat: NDArray) -> NDArray:
         return 1 - y_hat
 
     def fit(
         self, X: ArrayLike, y: ArrayLike, calibration_size: float = 0.2, mondrian: bool = True
-    ) -> ICP:
+    ) -> InductiveConformalPredictor:
 
         self._mondrian = mondrian
 
@@ -139,12 +150,12 @@ class _ClassifierICP(InductiveConformalPredictor):
         prediction_sets[:] = np.nan
 
         for label, index in self.label_2_index_.items():
-            max_nonconformity = self.get_max_nonconformity(
+            max_nonconformity_score = self.get_max_nonconformity_score(
                 self.calibration_nonconformity_scores_[label], confidence_level
             )
 
             prediction_sets[
-                nonconformity_scores[:, index] < max_nonconformity, index
+                nonconformity_scores[:, index] < max_nonconformity_score, index
             ] = self.predictor.classes_[index]
 
         return prediction_sets
@@ -158,6 +169,8 @@ class _RegressorICP(InductiveConformalPredictor):
         Journal of the American Statistical Association, 113(523), 1094-1111.
     """
 
+    calibration_nonconformity_scores_: NDArray
+
     @staticmethod
     def _non_conformity_measure(y: Optional[NDArray], y_hat: NDArray) -> NDArray:
         return np.abs(y - y_hat)
@@ -170,7 +183,7 @@ class _RegressorICP(InductiveConformalPredictor):
 
     def fit(
         self, X: ArrayLike, y: ArrayLike, calibration_size: float = 0.2, weighted: bool = False
-    ) -> ICP:
+    ) -> InductiveConformalPredictor:
 
         self._weighted = weighted
 
@@ -209,7 +222,7 @@ class _RegressorICP(InductiveConformalPredictor):
         X = check_array(X, force_all_finite="allow-nan", estimator=self.predictor)
 
         y_hat = self.predictor.predict(X)
-        one_sided_interval = self.get_max_nonconformity(
+        one_sided_interval = self.get_max_nonconformity_score(
             self.calibration_nonconformity_scores_, confidence_level
         )
 
