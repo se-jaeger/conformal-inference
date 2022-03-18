@@ -34,14 +34,21 @@ class InductiveConformalPredictor(ABC):
         self._fit = fit
         self.predictor = deepcopy(predictor)
 
+    def check_in_range(self, number: float, name: str, range: Tuple[int, int] = (0, 1)) -> None:
+        if number < range[0] or number > range[1]:
+            raise ValueError(f"Variable '{name}' is not valid! Need to be: 0 <= {name} <= 1")
+
     def check_and_split_X_y(
         self, X: ArrayLike, y: ArrayLike, calibration_size: float
     ) -> Tuple[NDArray, NDArray, NDArray, NDArray]:
 
-        if calibration_size >= 1 or calibration_size <= 0:
-            raise ValueError("'calibration_size' not valid! Need to be: 0 < calibration_size < 1")
+        self.check_in_range(calibration_size, "calibration_size")
+
+        X = np.array(X)
+        y = np.array(y)
 
         X = check_array(X, force_all_finite="allow-nan", estimator=self.predictor)
+        y = y.ravel()  # make sure target is 1d array
 
         if self.fit:
             X_training, X_calibration, y_training, y_calibration = train_test_split(
@@ -53,10 +60,10 @@ class InductiveConformalPredictor(ABC):
             y_training = y_calibration = y
 
         return (
-            np.array(X_training),
-            np.array(X_calibration),
-            np.array(y_training),
-            np.array(y_calibration),
+            X_training,
+            X_calibration,
+            y_training,
+            y_calibration,
         )
 
     @staticmethod
@@ -68,6 +75,9 @@ class InductiveConformalPredictor(ABC):
         # with indices, which start at 0 not 1.
         n = len(nonconformity_scores)
         k = ceil((n + 1) * confidence_level) - 1
+
+        # mathematically, it is possible that `k` not in: 0 <= k <= n - 1, therefore, we clip it
+        k = 0 if k < 0 else n - 1 if k >= n else k
 
         max_nonconformity_score = nonconformity_scores[
             # `np.argpartition` promises that the k-th smallest number will be in its final
@@ -93,7 +103,7 @@ class InductiveConformalPredictor(ABC):
         pass
 
 
-class _ClassifierICP(InductiveConformalPredictor):
+class InductiveConformalClassifier(InductiveConformalPredictor):
     """
     TODO
     """
@@ -136,6 +146,7 @@ class _ClassifierICP(InductiveConformalPredictor):
         return self
 
     def predict(self, X: ArrayLike, confidence_level: float = 0.9) -> NDArray:
+        self.check_in_range(confidence_level, "confidence_level")
         check_is_fitted(
             self,
             attributes=["calibration_nonconformity_scores_", "label_2_index_"],
@@ -161,7 +172,7 @@ class _ClassifierICP(InductiveConformalPredictor):
         return prediction_sets
 
 
-class _RegressorICP(InductiveConformalPredictor):
+class InductiveConformalRegressor(InductiveConformalPredictor):
     """
     Algorithm described in:
         Lei, J., G'Sell, M., Rinaldo, A., Tibshirani, R. J., & Wasserman, L. (2018).
@@ -213,6 +224,7 @@ class _RegressorICP(InductiveConformalPredictor):
         return self
 
     def predict(self, X: ArrayLike, confidence_level: float = 0.9) -> NDArray:
+        self.check_in_range(confidence_level, "confidence_level")
         check_is_fitted(
             self,
             attributes=["calibration_nonconformity_scores_", "mean_absolute_deviation_predictor"]
@@ -247,13 +259,13 @@ def InductiveConformalPredictorFactory(
         check_is_fitted(predictor)
 
     if is_classifier(predictor):
-        return _ClassifierICP(
+        return InductiveConformalClassifier(
             predictor=predictor,
             fit=fit,
         )
 
     elif is_regressor(predictor):
-        return _RegressorICP(
+        return InductiveConformalRegressor(
             predictor=predictor,
             fit=fit,
         )
