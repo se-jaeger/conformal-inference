@@ -44,11 +44,8 @@ class InductiveConformalPredictor(ABC):
 
         self.check_in_range(calibration_size, "calibration_size")
 
-        X = np.array(X)
-        y = np.array(y)
-
-        X = check_array(X, force_all_finite="allow-nan", estimator=self.predictor)
-        y = y.ravel()  # make sure target is 1d array
+        X = check_array(np.array(X), force_all_finite="allow-nan", estimator=self.predictor)
+        y = np.array(y).ravel()  # make sure target is 1d array
 
         if self.fit:
             X_training, X_calibration, y_training, y_calibration = train_test_split(
