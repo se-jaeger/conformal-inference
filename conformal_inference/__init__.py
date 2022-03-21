@@ -15,3 +15,6 @@ def setup_logger(name: str) -> None:
     formatter = Formatter("%(asctime)s - %(levelname)s - %(name)s: %(message)s")
     handler.setFormatter(formatter)
     logger.addHandler(handler)
+
+
+setup_logger(__name__)
