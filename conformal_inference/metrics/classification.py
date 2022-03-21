@@ -11,7 +11,7 @@ def __calculate_prediction_set_sizes(predictions: NDArray) -> NDArray:
 def coverage(predictions: NDArray, y_true: ArrayLike) -> float:
     y_true = np.array(y_true)
     y_in_prediction = [a in b for a, b in zip(y_true, predictions)]
-    return sum(y_in_prediction) / len(y_true)
+    return sum(y_in_prediction) / y_true.size
 
 
 def mean_and_std_prediction_set_size(predictions: NDArray) -> Tuple[float, float]:
