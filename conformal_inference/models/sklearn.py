@@ -29,7 +29,7 @@ class InductiveConformalPredictor(ABC):
     def __init__(
         self,
         predictor: BaseEstimator,
-        conditional=True,
+        conditional: bool = True,
         fit: bool = True,
     ) -> None:
         self._conditional = conditional
@@ -226,7 +226,7 @@ class InductiveConformalRegressor(InductiveConformalPredictor):
 
 def InductiveConformalPredictorFactory(
     predictor: BaseEstimator,
-    conditional=True,
+    conditional: bool = True,
     fit: bool = True,
 ) -> InductiveConformalPredictor:
     if not fit:
