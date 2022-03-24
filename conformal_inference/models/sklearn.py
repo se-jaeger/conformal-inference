@@ -3,7 +3,6 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from logging import getLogger
-from math import ceil
 from typing import Any, Dict, Optional, Tuple, Union
 
 import numpy as np
@@ -68,9 +67,9 @@ class InductiveConformalPredictor(ABC):
     def calculate_q_hat(nonconformity_scores: NDArray, confidence_level: float) -> float:
 
         n = len(nonconformity_scores)
-        quantile = ceil((n + 1) * confidence_level) / n
+        quantile = confidence_level * (1 + 1 / n)
 
-        # clip `quantile` to make sure it is in 0 <= k <= 1
+        # clip `quantile` to make sure it is in 0 <= quantile <= 1
         quantile = 1 if quantile > 1 else 0 if quantile < 0 else quantile
 
         return np.quantile(nonconformity_scores, quantile, method="higher")
@@ -152,9 +151,7 @@ class InductiveConformalClassifier(InductiveConformalPredictor):
                 self.calibration_nonconformity_scores_[label], confidence_level
             )
 
-            prediction_sets[
-                nonconformity_scores[:, index] < q_hat, index
-            ] = self.predictor.classes_[index]
+            prediction_sets[nonconformity_scores[:, index] < q_hat, index] = label
 
         return prediction_sets
 

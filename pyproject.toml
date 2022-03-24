@@ -2,7 +2,7 @@
 name = "conformal-inference"
 version = "0.1.0"
 description = ""
-authors = ["Sebastian Jäger <message@sebastian-jaeger.me>"]
+authors = ["Sebastian Jäger <git@sebastian-jaeger.me>"]
 
 [tool.poetry.dependencies]
 python = "^3.8"
