@@ -5,33 +5,36 @@ from typing import Dict, Tuple
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 from quantile_forest import RandomForestQuantileRegressor
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.utils import check_array
 from sklearn.utils.validation import check_is_fitted
 
-from .base import InductiveConformalPredictor
+from .base import ConformalClassifier, InductiveConformalPredictor
 from .utils import calculate_q_hat, check_in_range
 
 
 class ConformalRandomForestRegressor(InductiveConformalPredictor):
+    """
+    Source:
+        Romano, Y., Patterson, E., & Candès, E.J. (2019).
+        Conformalized Quantile Regression. NeurIPS.
+    """
 
     predictor: RandomForestQuantileRegressor
     calibration_nonconformity_scores_: Dict[float, NDArray]
     q_hat_for_confidence_level_: Dict[float, float]
 
-    def __init__(self, forest_params: dict = {}) -> None:
+    def __init__(self, predictor_params: dict = {}) -> None:
 
-        if type(forest_params) != dict:
-            raise ValueError("'forest_params' need to be dictionary of arguments.")
+        if type(predictor_params) != dict:
+            raise ValueError("'predictor_params' need to be dictionary of arguments.")
 
-        super().__init__(RandomForestQuantileRegressor(**forest_params), conditional=True, fit=True)
+        super().__init__(
+            RandomForestQuantileRegressor(**predictor_params), conditional=True, fit=True
+        )
 
     @staticmethod
     def _calculate_nonconformity_scores(y_hat: NDArray, y: NDArray) -> NDArray:
-        """
-        Source:
-            Romano, Y., Patterson, E., & Candès, E.J. (2019).
-            Conformalized Quantile Regression. NeurIPS.
-        """
         return np.stack((y_hat[:, 0] - y, y - y_hat[:, 1]), axis=1).max(axis=1)
 
     @staticmethod
@@ -97,3 +100,14 @@ class ConformalRandomForestRegressor(InductiveConformalPredictor):
         y_hat_upper_bound = y_hat_quantiles[:, 1] + q_hat
 
         return np.stack((y_hat_lower_bound, y_hat_upper_bound), axis=1)
+
+
+class ConformalRandomForestClassifier(ConformalClassifier):
+    predictor: RandomForestClassifier
+
+    def __init__(self, predictor_params: dict = {}) -> None:
+
+        if type(predictor_params) != dict:
+            raise ValueError("'predictor_params' need to be dictionary of arguments.")
+
+        super().__init__(RandomForestClassifier(**predictor_params), conditional=True, fit=True)
