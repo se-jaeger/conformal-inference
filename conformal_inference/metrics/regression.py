@@ -9,8 +9,8 @@ def __calculate_prediction_interval_sizes(predictions: NDArray) -> NDArray:
 
 
 def coverage(predictions: NDArray, y_true: ArrayLike) -> float:
-    y_true = np.array(y_true)
-    y_in_prediction = (predictions[:, [0]] <= y_true) & (y_true <= predictions[:, [1]])
+    y_true = np.array(y_true).ravel()
+    y_in_prediction = (predictions[:, 0] <= y_true) & (y_true <= predictions[:, 1])
     return y_in_prediction.sum() / y_true.size
 
 

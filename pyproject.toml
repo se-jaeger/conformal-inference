@@ -8,6 +8,7 @@ authors = ["Sebastian Jäger <git@sebastian-jaeger.me>"]
 python = "^3.8"
 scikit-learn = "^1.0.2"
 numpy = "^1.22.2"
+quantile-forest = "^1.0.1"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
