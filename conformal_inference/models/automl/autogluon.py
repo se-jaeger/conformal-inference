@@ -60,10 +60,16 @@ class ConformalQuantileAutoGluonRegressor(InductiveConformalPredictor):
         return lower_quantile, upper_quantile
 
     def fit(
-        self, training_data: Union[TabularDataset, pd.DataFrame], calibration_size: float = 0.2
+        self,
+        training_data: Union[TabularDataset, pd.DataFrame],
+        calibration_size: float = 0.2,
+        fit_params: dict = {},
     ) -> ConformalQuantileAutoGluonRegressor:
 
         check_in_range(calibration_size, "calibration_size")
+
+        if type(fit_params) != dict:
+            raise ValueError("'fit_params' need to be dictionary of arguments.")
 
         training_data_, calibration_data_ = train_test_split(
             training_data, test_size=calibration_size
@@ -74,7 +80,7 @@ class ConformalQuantileAutoGluonRegressor(InductiveConformalPredictor):
         ]
         y_calibration = calibration_data_[self._target_column]
 
-        self.predictor.fit(training_data_)
+        self.predictor.fit(training_data_, **fit_params)
         non_conformity_scores = self._calculate_nonconformity_scores(
             y_hat=self.predictor.predict(X_calibration, as_pandas=False),
             y=y_calibration,
@@ -119,10 +125,16 @@ class ConformalQuantileAutoGluonClassifier(ConformalClassifier):
 
     # it's fine signature changed by intention
     def fit(  # type: ignore
-        self, training_data: Union[TabularDataset, pd.DataFrame], calibration_size: float = 0.2
+        self,
+        training_data: Union[TabularDataset, pd.DataFrame],
+        calibration_size: float = 0.2,
+        fit_params: dict = {},
     ) -> ConformalQuantileAutoGluonClassifier:
 
         check_in_range(calibration_size, "calibration_size")
+
+        if type(fit_params) != dict:
+            raise ValueError("'fit_params' need to be dictionary of arguments.")
 
         training_data_, calibration_data_ = train_test_split(
             training_data, test_size=calibration_size
@@ -133,7 +145,7 @@ class ConformalQuantileAutoGluonClassifier(ConformalClassifier):
         ]
         y_calibration = calibration_data_[self._target_column]
 
-        self.predictor.fit(training_data_)
+        self.predictor.fit(training_data_, **fit_params)
 
         self.label_2_index_ = {x: index for index, x in enumerate(self.predictor.class_labels)}
         nonconformity_scores = self._calculate_nonconformity_scores(
