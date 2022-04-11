@@ -29,7 +29,7 @@ class InductiveConformalPredictor(ABC):
 
     def __init__(
         self,
-        predictor: BaseEstimator,
+        predictor: Any,
         conditional: bool = True,
         fit: bool = True,
     ) -> None:

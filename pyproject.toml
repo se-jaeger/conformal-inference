@@ -5,10 +5,11 @@ description = ""
 authors = ["Sebastian Jäger <git@sebastian-jaeger.me>"]
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.8, <3.10"
 scikit-learn = "^1.0.2"
 numpy = "^1.22.2"
 quantile-forest = "^1.0.1"
+autogluon = "^0.4.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
