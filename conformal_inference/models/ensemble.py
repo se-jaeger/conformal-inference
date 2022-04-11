@@ -79,7 +79,6 @@ class ConformalRandomForestRegressor(InductiveConformalPredictor):
         self._y_calibration = y_calibration.copy()
         self.calibration_nonconformity_scores_ = {}
         self.q_hat_for_confidence_level_ = {}
-        self._get_or_calculate_q_hat_for_confidence_level(0.9)
 
         return self
 
