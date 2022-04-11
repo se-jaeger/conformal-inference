@@ -80,7 +80,7 @@ class ConformalQuantileAutoGluonRegressor(InductiveConformalPredictor):
         ]
         y_calibration = calibration_data_[self._target_column]
 
-        self.predictor.fit(training_data_, **fit_params)
+        self.predictor.fit(training_data_, **fit_params, calibrate=False)
         non_conformity_scores = self._calculate_nonconformity_scores(
             y_hat=self.predictor.predict(X_calibration, as_pandas=False),
             y=y_calibration,
@@ -145,7 +145,7 @@ class ConformalQuantileAutoGluonClassifier(ConformalClassifier):
         ]
         y_calibration = calibration_data_[self._target_column]
 
-        self.predictor.fit(training_data_, **fit_params)
+        self.predictor.fit(training_data_, **fit_params, calibrate=False)
 
         self.label_2_index_ = {x: index for index, x in enumerate(self.predictor.class_labels)}
         nonconformity_scores = self._calculate_nonconformity_scores(
