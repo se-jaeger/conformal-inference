@@ -97,19 +97,15 @@ class ConformalQuantileAutoGluonRegressor(InductiveConformalPredictor):
         y_hat_lower_bound = y_hat_quantiles[:, 0] - self._q_hat
         y_hat_upper_bound = y_hat_quantiles[:, -1] + self._q_hat
 
-        return np.stack((y_hat_lower_bound, y_hat_upper_bound), axis=1)
+        return np.stack((y_hat_lower_bound, y_hat_quantiles[1], y_hat_upper_bound), axis=1)
 
 
-class ConformalQuantileAutoGluonClassifier(ConformalClassifier):
+class ConformalAutoGluonClassifier(ConformalClassifier):
 
-    _multiclass: bool
     predictor: TabularPredictor
 
-    def __init__(
-        self, target_column: str, multiclass: bool = True, predictor_params: dict = {}
-    ) -> None:
+    def __init__(self, target_column: str, predictor_params: dict = {}) -> None:
 
-        self._multiclass = multiclass
         self._target_column = target_column
 
         if type(predictor_params) != dict:
@@ -118,18 +114,17 @@ class ConformalQuantileAutoGluonClassifier(ConformalClassifier):
         super().__init__(
             TabularPredictor(
                 label=target_column,
-                problem_type="multiclass" if self._multiclass else "binary",
                 **predictor_params,
             )
         )
 
-    # it's fine signature changed by intention
+    # it's fine, signature changed by intention
     def fit(  # type: ignore
         self,
         training_data: Union[TabularDataset, pd.DataFrame],
         calibration_size: float = 0.2,
         fit_params: dict = {},
-    ) -> ConformalQuantileAutoGluonClassifier:
+    ) -> ConformalAutoGluonClassifier:
 
         check_in_range(calibration_size, "calibration_size")
 
