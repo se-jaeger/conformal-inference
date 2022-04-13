@@ -97,7 +97,7 @@ class ConformalQuantileAutoGluonRegressor(InductiveConformalPredictor):
         y_hat_lower_bound = y_hat_quantiles[:, 0] - self._q_hat
         y_hat_upper_bound = y_hat_quantiles[:, -1] + self._q_hat
 
-        return np.stack((y_hat_lower_bound, y_hat_quantiles[1], y_hat_upper_bound), axis=1)
+        return np.stack((y_hat_lower_bound, y_hat_quantiles[:, 1], y_hat_upper_bound), axis=1)
 
 
 class ConformalAutoGluonClassifier(ConformalClassifier):
