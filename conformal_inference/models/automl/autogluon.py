@@ -49,7 +49,7 @@ class ConformalQuantileAutoGluonRegressor(InductiveConformalPredictor):
 
     @staticmethod
     def _calculate_nonconformity_scores(y_hat: NDArray, y: NDArray) -> NDArray:
-        return np.stack((y_hat[:, 0] - y, y - y_hat[:, -1]), axis=1).max(axis=1)
+        return np.stack((y_hat[:, 0] - y, y - y_hat[:, 2]), axis=1).max(axis=1)
 
     @staticmethod
     def _calculate_lower_upper_quantiles(confidence_level: float) -> Tuple[float, float]:
@@ -95,7 +95,7 @@ class ConformalQuantileAutoGluonRegressor(InductiveConformalPredictor):
         y_hat_quantiles = self.predictor.predict(data, as_pandas=False)
 
         y_hat_lower_bound = y_hat_quantiles[:, 0] - self._q_hat
-        y_hat_upper_bound = y_hat_quantiles[:, -1] + self._q_hat
+        y_hat_upper_bound = y_hat_quantiles[:, 2] + self._q_hat
 
         return np.stack((y_hat_lower_bound, y_hat_quantiles[:, 1], y_hat_upper_bound), axis=1)
 
@@ -163,13 +163,30 @@ class ConformalAutoGluonClassifier(ConformalClassifier):
         y_hat = self.predictor.predict_proba(data, as_pandas=False)
         nonconformity_scores = self._calculate_nonconformity_scores(y_hat=y_hat)
 
-        # prepare prediction sets. If class is not included in prediction, use `np.nan`
-        prediction_sets = np.empty(nonconformity_scores.shape)
-        prediction_sets[:] = np.nan
+        # numpy does not allow to
+        y_hat_in_prediction_set = np.full(nonconformity_scores.shape, np.nan)
+        class_label_in_prediction_set = np.full(nonconformity_scores.shape, np.nan)
 
-        for label, index in self.label_2_index_.items():
+        for label, class_index in self.label_2_index_.items():
             q_hat = calculate_q_hat(self.calibration_nonconformity_scores_[label], confidence_level)
 
-            prediction_sets[nonconformity_scores[:, index] < q_hat, index] = label
+            # for now, we save both: class_label and predicted y_hat if they are smaller than q_hat
+            sample_mask = nonconformity_scores[:, class_index] < q_hat
+            y_hat_in_prediction_set[sample_mask, class_index] = y_hat[sample_mask, class_index]
+            class_label_in_prediction_set[sample_mask, class_index] = label
+
+        # descending sort the classes based on their y_hat predictions
+        sorted_args = np.argsort(y_hat_in_prediction_set, axis=1)
+        sorted_args = sorted_args[:, ::-1]
+        sorted_prediction_sets = np.take_along_axis(
+            class_label_in_prediction_set, sorted_args, axis=1
+        )
+
+        # finally, move `nan`s to the end
+        prediction_sets = np.full(nonconformity_scores.shape, np.nan)
+        for idx in range(len(sorted_prediction_sets)):
+            prediction_sets[
+                idx, 0 : len(sorted_prediction_sets[idx])  # noqa
+            ] = sorted_prediction_sets[idx]
 
         return prediction_sets
