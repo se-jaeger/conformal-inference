@@ -1,11 +1,12 @@
 from typing import Tuple
 
 import numpy as np
+import pandas as pd
 from numpy.typing import ArrayLike, NDArray
 
 
 def __calculate_prediction_set_sizes(predictions: NDArray) -> NDArray:
-    return np.count_nonzero(~np.isnan(predictions), axis=1)
+    return np.count_nonzero(~pd.isna(predictions), axis=1)
 
 
 def coverage(predictions: NDArray, y_true: ArrayLike) -> float:
