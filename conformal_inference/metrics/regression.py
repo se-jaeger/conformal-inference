@@ -5,12 +5,12 @@ from numpy.typing import ArrayLike, NDArray
 
 
 def __calculate_prediction_interval_sizes(predictions: NDArray) -> NDArray:
-    return predictions[:, 1] - predictions[:, 0]
+    return predictions[:, 2] - predictions[:, 0]
 
 
 def coverage(predictions: NDArray, y_true: ArrayLike) -> float:
     y_true = np.array(y_true).ravel()
-    y_in_prediction = (predictions[:, 0] <= y_true) & (y_true <= predictions[:, 1])
+    y_in_prediction = (predictions[:, 0] <= y_true) & (y_true <= predictions[:, 2])
     return y_in_prediction.sum() / y_true.size
 
 
