@@ -1,26 +1,19 @@
 from __future__ import annotations
 
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple
 
-import numpy as np
-import pandas as pd
-from autogluon.tabular import TabularDataset, TabularPredictor
-from numpy.typing import NDArray
+from autogluon.tabular import TabularPredictor
+from numpy.typing import ArrayLike, NDArray
 from sklearn.model_selection import train_test_split
 from sklearn.utils.validation import check_is_fitted
 
-from ..base import ConformalClassifier, InductiveConformalPredictor
+from ..inductive import ConformalClassifier, ConformalQuantileRegressor
 from ..utils import calculate_q_hat, check_in_range
 
 
-class ConformalQuantileAutoGluonRegressor(InductiveConformalPredictor):
-    """
-    Source:
-        Romano, Y., Patterson, E., & Candès, E.J. (2019).
-        Conformalized Quantile Regression. NeurIPS.
-    """
+class ConformalQuantileAutoGluonRegressor(ConformalQuantileRegressor):
 
-    predictor: TabularPredictor
+    _predictor: TabularPredictor
     _q_hat: float
     _confidence_level: float
     _target_column: str
@@ -47,172 +40,127 @@ class ConformalQuantileAutoGluonRegressor(InductiveConformalPredictor):
             )
         )
 
-    @staticmethod
-    def _calculate_nonconformity_scores(y_hat: NDArray, y: NDArray) -> NDArray:
-        return np.stack((y_hat[:, 0] - y, y - y_hat[:, 2]), axis=1).max(axis=1)
-
-    @staticmethod
-    def _calculate_lower_upper_quantiles(confidence_level: float) -> Tuple[float, float]:
-        miscoverage_level = 1 - confidence_level
-        lower_quantile = miscoverage_level / 2
-        upper_quantile = 1 - miscoverage_level / 2
-
-        return lower_quantile, upper_quantile
-
-    def fit(
+    def _fit_method(
         self,
-        training_data: Union[TabularDataset, pd.DataFrame],
+        X: ArrayLike,
         calibration_size: float = 0.2,
+        y: Optional[ArrayLike] = None,
         fit_params: dict = {},
-    ) -> ConformalQuantileAutoGluonRegressor:
+        **kwargs: Dict[str, Any],
+    ) -> None:
 
-        check_in_range(calibration_size, "calibration_size")
+        if y is not None:
+            raise ValueError(
+                "This implementation of 'ConformalClassifier' requires to be called with 'X', "
+                f"which should integrate the target column '{self._target_column}'."
+            )
 
-        if type(fit_params) != dict:
-            raise ValueError("'fit_params' need to be dictionary of arguments.")
-
-        training_data_, calibration_data_ = train_test_split(
-            training_data, test_size=calibration_size
-        )
+        training_data_, calibration_data_ = train_test_split(X, test_size=calibration_size)
 
         X_calibration = calibration_data_[
             [column for column in calibration_data_.columns if column != self._target_column]
         ]
         y_calibration = calibration_data_[self._target_column]
 
-        self.predictor.fit(training_data_, **fit_params, calibrate=False)
+        self._predictor.fit(training_data_, **fit_params, calibrate=False)
         non_conformity_scores = self._calculate_nonconformity_scores(
-            y_hat=self.predictor.predict(X_calibration, as_pandas=False),
+            y_hat=self._predictor.predict(X_calibration, as_pandas=False),
             y=y_calibration,
         )
         self._q_hat = calculate_q_hat(non_conformity_scores, self._confidence_level)
 
-        return self
+        # bootstrap the necessary attributes
+        self.calibration_nonconformity_scores_ = {}  # type: ignore
 
-    def predict(self, data: Union[TabularDataset, pd.DataFrame]) -> NDArray:
+    def _predict_and_calculate_half_interval(
+        self,
+        X: ArrayLike,
+        confidence_level: Optional[float] = None,
+        predict_params: dict = {},
+        **kwargs: Dict[str, Any],
+    ) -> Tuple[NDArray, float]:
         check_is_fitted(self, attributes=["_q_hat"])
 
-        y_hat_quantiles = self.predictor.predict(data, as_pandas=False)
+        if confidence_level is not None:
+            raise ValueError(
+                "This implementation of 'ConformalQuantileRegressor' does not allow to set "
+                f"'confidence_level' for prediction. It was set to {self._confidence_level} "
+                "during initialization."
+            )
 
-        y_hat_lower_bound = y_hat_quantiles[:, 0] - self._q_hat
-        y_hat_upper_bound = y_hat_quantiles[:, 2] + self._q_hat
+        y_hat_quantiles = self._predictor.predict(X, **predict_params, as_pandas=False)
 
-        return np.stack((y_hat_lower_bound, y_hat_quantiles[:, 1], y_hat_upper_bound), axis=1)
+        return y_hat_quantiles, self._q_hat
 
 
 class ConformalAutoGluonClassifier(ConformalClassifier):
 
-    predictor: TabularPredictor
-    _labels_dtype: Optional[Any] = None
+    _predictor: TabularPredictor
 
-    def __init__(self, target_column: str, predictor_params: dict = {}) -> None:
-
-        self._target_column = target_column
+    def __init__(
+        self, target_column: str, conditional: bool = True, predictor_params: dict = {}
+    ) -> None:
 
         if type(predictor_params) != dict:
             raise ValueError("'predictor_params' need to be dictionary of arguments.")
+
+        if type(target_column) != str:
+            raise ValueError("'target_column' need to be of type 'str'.")
+
+        self._target_column = target_column
 
         super().__init__(
             TabularPredictor(
                 label=target_column,
                 **predictor_params,
-            )
+            ),
+            conditional=conditional,
+            fit=True,
         )
 
-    def _create_numpy_array_for_labels_dtype(self, shape: Tuple[int, ...]) -> NDArray:
-        if self._labels_dtype is None:
-            are_labels_numerical = list(
-                {
-                    isinstance(x, (int, float, complex)) and not isinstance(x, bool)
-                    for x in self.predictor.class_labels
-                }
-            )
-
-            if len(are_labels_numerical) > 1 or not are_labels_numerical[0]:
-                self._labels_dtype = object
-
-            else:
-                self._labels_dtype = float
-
-        return np.full(shape, np.nan, dtype=self._labels_dtype)
-
-    # it's fine, signature changed by intention
-    def fit(  # type: ignore
+    def _fit_and_calculate_calibration_nonconformity_scores(
         self,
-        training_data: Union[TabularDataset, pd.DataFrame],
+        X: ArrayLike,
         calibration_size: float = 0.2,
+        y: Optional[ArrayLike] = None,
         fit_params: dict = {},
-    ) -> ConformalAutoGluonClassifier:
+        **kwargs: Dict[str, Any],
+    ) -> Tuple[NDArray, NDArray]:
 
-        check_in_range(calibration_size, "calibration_size")
+        if y is not None:
+            raise ValueError(
+                "This implementation of 'ConformalClassifier' requires to be called with 'X', "
+                f"which should integrate the target column '{self._target_column}'."
+            )
 
-        if type(fit_params) != dict:
-            raise ValueError("'fit_params' need to be dictionary of arguments.")
-
-        training_data_, calibration_data_ = train_test_split(
-            training_data, test_size=calibration_size
-        )
+        training_data_, calibration_data_ = train_test_split(X, test_size=calibration_size)
 
         X_calibration = calibration_data_[
             [column for column in calibration_data_.columns if column != self._target_column]
         ]
-        y_calibration = calibration_data_[self._target_column]
 
-        self.predictor.fit(training_data_, **fit_params, calibrate=False)
+        # later on, we expect it to be a NDArray
+        y_calibration = calibration_data_[self._target_column].to_numpy()
 
-        self.label_2_index_ = {x: index for index, x in enumerate(self.predictor.class_labels)}
+        self._predictor.fit(training_data_, **fit_params, calibrate=False)
+
         nonconformity_scores = self._calculate_nonconformity_scores(
-            y_hat=self.predictor.predict_proba(X_calibration, as_pandas=False)
+            y_hat=self._predictor.predict_proba(X_calibration, as_pandas=False)
         )
 
-        self.calibration_nonconformity_scores_ = {
-            label: nonconformity_scores[y_calibration == label, index]
-            for label, index in self.label_2_index_.items()
-        }
+        return y_calibration, nonconformity_scores
 
-        return self
+    def _get_label_to_index_mapping(self) -> Dict[Any, int]:
+        return {x: index for index, x in enumerate(self._predictor.class_labels)}
 
-    def predict(
-        self, data: Union[TabularDataset, pd.DataFrame], confidence_level: float = 0.9
-    ) -> NDArray:
-        check_in_range(confidence_level, "confidence_level")
-        check_is_fitted(self, attributes=["calibration_nonconformity_scores_", "label_2_index_"])
+    def _predict_and_calculate_nonconformity_scores(
+        self,
+        X: ArrayLike,
+        predict_params: dict = {},
+        **kwargs: Dict[str, Any],
+    ) -> Tuple[NDArray, NDArray]:
 
-        y_hat = self.predictor.predict_proba(data, as_pandas=False)
+        y_hat = self._predictor.predict_proba(X, **predict_params, as_pandas=False)
         nonconformity_scores = self._calculate_nonconformity_scores(y_hat=y_hat)
 
-        # numpy does not allow to
-        y_hats_if_in_prediction_set = np.full(nonconformity_scores.shape, np.nan)
-        class_labels_if_in_prediction_set = self._create_numpy_array_for_labels_dtype(
-            shape=nonconformity_scores.shape
-        )
-
-        for label, class_index in self.label_2_index_.items():
-            q_hat = calculate_q_hat(self.calibration_nonconformity_scores_[label], confidence_level)
-
-            # for now, we save both: class_label and predicted y_hat if they are smaller than q_hat
-            sample_mask = nonconformity_scores[:, class_index] < q_hat
-            y_hats_if_in_prediction_set[sample_mask, class_index] = y_hat[sample_mask, class_index]
-            class_labels_if_in_prediction_set[sample_mask, class_index] = label
-
-        # descending sort the classes based on their y_hat predictions
-        sorted_args = np.argsort(y_hats_if_in_prediction_set, axis=1)
-        sorted_args = sorted_args[:, ::-1]
-        list_of_prediction_set_lists = np.take_along_axis(
-            class_labels_if_in_prediction_set, sorted_args, axis=1
-        ).tolist()
-
-        prediction_sets_as_lists = [
-            [prediction for prediction in list_of_prediction_sets if not pd.isna(prediction)]
-            for list_of_prediction_sets in list_of_prediction_set_lists
-        ]
-
-        prediction_sets = self._create_numpy_array_for_labels_dtype(
-            shape=nonconformity_scores.shape
-        )
-        for idx in range(len(prediction_sets_as_lists)):
-            prediction_sets[
-                idx, 0 : len(prediction_sets_as_lists[idx])  # noqa
-            ] = prediction_sets_as_lists[idx]
-
-        return prediction_sets
+        return y_hat, nonconformity_scores
