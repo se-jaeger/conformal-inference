@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from logging import getLogger
 from typing import Any, Dict, Optional, Tuple
 
 from autogluon.tabular import TabularPredictor
@@ -9,6 +10,8 @@ from sklearn.utils.validation import check_is_fitted
 
 from ..inductive import ConformalClassifier, ConformalQuantileRegressor
 from ..utils import calculate_q_hat, check_in_range
+
+logger = getLogger()
 
 
 class ConformalQuantileAutoGluonRegressor(ConformalQuantileRegressor):
@@ -30,6 +33,13 @@ class ConformalQuantileAutoGluonRegressor(ConformalQuantileRegressor):
             raise ValueError("'predictor_params' need to be dictionary of arguments.")
 
         lower_quantile, upper_quantile = self._calculate_lower_upper_quantiles(confidence_level)
+
+        for to_remove in ["label", "problem_type", "quantile_levels"]:
+            if predictor_params.pop(to_remove, None) is not None:
+                logger.warning(
+                    f"Ignoring '{to_remove}' of given 'predictor_params' "
+                    "since it is already defined."
+                )
 
         super().__init__(
             TabularPredictor(
@@ -108,6 +118,13 @@ class ConformalAutoGluonClassifier(ConformalClassifier):
             raise ValueError("'target_column' need to be of type 'str'.")
 
         self._target_column = target_column
+
+        for to_remove in ["label"]:
+            if predictor_params.pop(to_remove, None) is not None:
+                logger.warning(
+                    f"Ignoring '{to_remove}' of given 'predictor_params' "
+                    "since it is already defined."
+                )
 
         super().__init__(
             TabularPredictor(
