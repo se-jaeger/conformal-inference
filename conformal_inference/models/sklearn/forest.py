@@ -42,7 +42,10 @@ class ConformalRandomForestRegressor(SKLearnConformalPredictor, ConformalQuantil
                 ),
                 y=self._y_calibration,
             )
-            self.q_hat_for_confidence_level_[confidence_level] = calculate_q_hat(
+
+            # returning `None` isn't a problem here.
+            # This only happens when no nonconformity scores are given.
+            self.q_hat_for_confidence_level_[confidence_level] = calculate_q_hat(  # type: ignore
                 self.calibration_nonconformity_scores_[confidence_level], confidence_level
             )
 

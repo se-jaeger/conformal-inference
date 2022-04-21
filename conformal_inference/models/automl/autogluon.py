@@ -77,7 +77,10 @@ class ConformalQuantileAutoGluonRegressor(ConformalQuantileRegressor):
             y_hat=self._predictor.predict(X_calibration, as_pandas=False),
             y=y_calibration,
         )
-        self._q_hat = calculate_q_hat(non_conformity_scores, self._confidence_level)
+
+        # returning `None` isn't a problem here.
+        # This only happens when no nonconformity scores are given.
+        self._q_hat = calculate_q_hat(non_conformity_scores, self._confidence_level)  # type: ignore
 
         # bootstrap the necessary attributes
         self.calibration_nonconformity_scores_ = {}  # type: ignore

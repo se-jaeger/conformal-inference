@@ -190,10 +190,16 @@ class ConformalClassifier(ConformalPredictor):
         for label, class_index in self.label_to_index_.items():
             q_hat = calculate_q_hat(self.calibration_nonconformity_scores_[label], confidence_level)
 
-            # for now, we save both: class_label and predicted y_hat if they are smaller than q_hat
-            sample_mask = nonconformity_scores[:, class_index] < q_hat
-            y_hats_if_in_prediction_set[sample_mask, class_index] = y_hat[sample_mask, class_index]
-            prediction_sets[sample_mask, class_index] = label
+            # if calibration set does not have examples for `label`,
+            # `calculate_q_hat` returns `None``
+            if q_hat:
+                # for now, we save both: class_label and predicted y_hat
+                # if they are smaller than q_hat
+                sample_mask = nonconformity_scores[:, class_index] < q_hat
+                y_hats_if_in_prediction_set[sample_mask, class_index] = y_hat[
+                    sample_mask, class_index
+                ]
+                prediction_sets[sample_mask, class_index] = label
 
         if sorted:
             # descending sort the classes based on their y_hat predictions

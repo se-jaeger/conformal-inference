@@ -1,12 +1,16 @@
-from typing import Tuple
+from typing import Optional, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
 
 
-def calculate_q_hat(nonconformity_scores: NDArray, confidence_level: float) -> float:
+def calculate_q_hat(nonconformity_scores: NDArray, confidence_level: float) -> Optional[float]:
 
     n = len(nonconformity_scores)
+
+    if n == 0:
+        return None
+
     quantile = confidence_level * (1 + 1 / n)
 
     # clip `quantile` to make sure it is in 0 <= quantile <= 1
