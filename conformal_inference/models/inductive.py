@@ -158,18 +158,13 @@ class ConformalClassifier(ConformalPredictor):
     def _get_label_to_index_mapping(self) -> Dict[Any, int]:
         pass
 
-    # signature changed by intention
-    def predict(  # type: ignore
+    def predict(
         self,
         X: ArrayLike,
         confidence_level: float = 0.9,
-        sorted: bool = True,
         predict_params: dict = {},
         **kwargs: Dict[str, Any],
     ) -> NDArray:
-
-        if type(sorted) != bool:
-            raise ValueError("'sorted' need to be of type 'bool'.")
 
         check_is_fitted(self, attributes=["label_to_index_", "index_to_label_"])
 
@@ -180,7 +175,9 @@ class ConformalClassifier(ConformalPredictor):
             kwargs=kwargs,
         )
 
+        sorted = kwargs.get("sorted", True)
         allow_empty_set = kwargs.get("allow_empty_set", True)
+
         y_hat, nonconformity_scores = self._predict_and_calculate_nonconformity_scores(
             X=X, predict_params=predict_params, kwargs=kwargs
         )
