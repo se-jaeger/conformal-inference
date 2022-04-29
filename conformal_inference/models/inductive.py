@@ -82,6 +82,7 @@ class ConformalClassifier(ConformalPredictor):
     """
 
     label_to_index_: Dict[Any, int]
+    index_to_label_: Dict[int, Any]
     _labels_dtype: Optional[Any] = None
     calibration_nonconformity_scores_: Dict[Any, NDArray]
 
@@ -127,6 +128,7 @@ class ConformalClassifier(ConformalPredictor):
         )
 
         self.label_to_index_ = self._get_label_to_index_mapping()
+        self.index_to_label_ = {index: label for label, index in self.label_to_index_.items()}
 
         if self._conditional:
             self.calibration_nonconformity_scores_ = {
@@ -156,20 +158,15 @@ class ConformalClassifier(ConformalPredictor):
     def _get_label_to_index_mapping(self) -> Dict[Any, int]:
         pass
 
-    # signature changed by intention
-    def predict(  # type: ignore
+    def predict(
         self,
         X: ArrayLike,
         confidence_level: float = 0.9,
-        sorted: bool = True,
         predict_params: dict = {},
         **kwargs: Dict[str, Any],
     ) -> NDArray:
 
-        if type(sorted) != bool:
-            raise ValueError("'sorted' need to be of type 'bool'.")
-
-        check_is_fitted(self, attributes=["label_to_index_"])
+        check_is_fitted(self, attributes=["label_to_index_", "index_to_label_"])
 
         super().predict(
             X=X,
@@ -178,9 +175,13 @@ class ConformalClassifier(ConformalPredictor):
             kwargs=kwargs,
         )
 
+        sorted = kwargs.get("sorted", True)
+        allow_empty_set = kwargs.get("allow_empty_set", True)
+
         y_hat, nonconformity_scores = self._predict_and_calculate_nonconformity_scores(
             X=X, predict_params=predict_params, kwargs=kwargs
         )
+        y_prediction = np.array([self.index_to_label_[index] for index in np.argmax(y_hat, 1)])
 
         y_hats_if_in_prediction_set = np.full(nonconformity_scores.shape, np.nan)
         prediction_sets = self._create_numpy_array_for_labels_dtype(
@@ -200,6 +201,10 @@ class ConformalClassifier(ConformalPredictor):
                     sample_mask, class_index
                 ]
                 prediction_sets[sample_mask, class_index] = label
+
+            if not allow_empty_set:
+                # enforce prediction set is at leas of size 1
+                prediction_sets[y_prediction == label, class_index] = label
 
         if sorted:
             # descending sort the classes based on their y_hat predictions
