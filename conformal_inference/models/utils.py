@@ -16,7 +16,7 @@ def calculate_q_hat(nonconformity_scores: NDArray, confidence_level: float) -> O
     # clip `quantile` to make sure it is in 0 <= quantile <= 1
     quantile = 1 if quantile > 1 else 0 if quantile < 0 else quantile
 
-    return np.quantile(nonconformity_scores, quantile, method="higher")
+    return np.quantile(nonconformity_scores, quantile, interpolation="higher")
 
 
 def check_in_range(number: float, name: str, range: Tuple[int, int] = (0, 1)) -> None:
