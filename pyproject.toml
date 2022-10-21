@@ -7,7 +7,7 @@ authors = ["Sebastian Jäger <git@sebastian-jaeger.me>"]
 [tool.poetry.dependencies]
 python = "^3.8, <3.10"
 quantile-forest = {version="^1.0.1", optional=true}
-autogluon = "^0.5.2"
+autogluon = "0.5.1"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
