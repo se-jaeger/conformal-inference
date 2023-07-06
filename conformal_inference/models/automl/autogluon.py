@@ -1,45 +1,41 @@
 from __future__ import annotations
 
 from logging import getLogger
-from typing import Any, Dict, Optional, Tuple
+from typing import TYPE_CHECKING, Any
 
 from autogluon.tabular import TabularPredictor
-from numpy.typing import ArrayLike, NDArray
 from sklearn.model_selection import train_test_split
 from sklearn.utils.validation import check_is_fitted
 
-from ..inductive import ConformalClassifier, ConformalQuantileRegressor
-from ..utils import calculate_q_hat, check_in_range
+from conformal_inference.models.inductive import ConformalClassifier, ConformalQuantileRegressor
+from conformal_inference.models.utils import calculate_q_hat, check_in_range
+
+if TYPE_CHECKING:
+    from numpy.typing import ArrayLike, NDArray
 
 logger = getLogger()
 
 
 class ConformalQuantileAutoGluonRegressor(ConformalQuantileRegressor):
-
     _predictor: TabularPredictor
     _q_hat: float
     _confidence_level: float
     _target_column: str
 
-    def __init__(
-        self, target_column: str, confidence_level: float = 0.9, predictor_params: dict = {}
-    ) -> None:
-
+    def __init__(self, target_column: str, confidence_level: float = 0.9, predictor_params: dict = {}) -> None:
         check_in_range(confidence_level, "confidence_level")
         self._confidence_level = confidence_level
         self._target_column = target_column
 
         if type(predictor_params) != dict:
-            raise ValueError("'predictor_params' need to be dictionary of arguments.")
+            msg = "'predictor_params' need to be dictionary of arguments."
+            raise ValueError(msg)
 
         lower_quantile, upper_quantile = self._calculate_lower_upper_quantiles(confidence_level)
 
         for to_remove in ["label", "problem_type", "quantile_levels"]:
             if predictor_params.pop(to_remove, None) is not None:
-                logger.warning(
-                    f"Ignoring '{to_remove}' of given 'predictor_params' "
-                    "since it is already defined."
-                )
+                logger.warning(f"Ignoring '{to_remove}' of given 'predictor_params' " "since it is already defined.")
 
         super().__init__(
             TabularPredictor(
@@ -47,22 +43,21 @@ class ConformalQuantileAutoGluonRegressor(ConformalQuantileRegressor):
                 problem_type="quantile",
                 quantile_levels=[lower_quantile, 0.5, upper_quantile],
                 **predictor_params,
-            )
+            ),
         )
 
     def _fit_method(
         self,
         X: ArrayLike,
         calibration_size: float = 0.2,
-        y: Optional[ArrayLike] = None,
+        y: ArrayLike | None = None,
         fit_params: dict = {},
-        **kwargs: Dict[str, Any],
+        **kwargs: dict[str, Any],
     ) -> None:
-
         if y is not None:
+            msg = f"This implementation of 'ConformalClassifier' requires to be called with 'X', which should integrate the target column '{self._target_column}'."
             raise ValueError(
-                "This implementation of 'ConformalClassifier' requires to be called with 'X', "
-                f"which should integrate the target column '{self._target_column}'."
+                msg,
             )
 
         training_data_, calibration_data_ = train_test_split(X, test_size=calibration_size)
@@ -88,17 +83,16 @@ class ConformalQuantileAutoGluonRegressor(ConformalQuantileRegressor):
     def _predict_and_calculate_half_interval(
         self,
         X: ArrayLike,
-        confidence_level: Optional[float] = None,
+        confidence_level: float | None = None,
         predict_params: dict = {},
-        **kwargs: Dict[str, Any],
-    ) -> Tuple[NDArray, float]:
+        **kwargs: dict[str, Any],
+    ) -> tuple[NDArray, float]:
         check_is_fitted(self, attributes=["_q_hat"])
 
         if confidence_level is not None:
+            msg = f"This implementation of 'ConformalQuantileRegressor' does not allow to set 'confidence_level' for prediction. It was set to {self._confidence_level} during initialization."
             raise ValueError(
-                "This implementation of 'ConformalQuantileRegressor' does not allow to set "
-                f"'confidence_level' for prediction. It was set to {self._confidence_level} "
-                "during initialization."
+                msg,
             )
 
         y_hat_quantiles = self._predictor.predict(X, **predict_params, as_pandas=False)
@@ -107,27 +101,22 @@ class ConformalQuantileAutoGluonRegressor(ConformalQuantileRegressor):
 
 
 class ConformalAutoGluonClassifier(ConformalClassifier):
-
     _predictor: TabularPredictor
 
-    def __init__(
-        self, target_column: str, conditional: bool = True, predictor_params: dict = {}
-    ) -> None:
-
+    def __init__(self, target_column: str, conditional: bool = True, predictor_params: dict = {}) -> None:
         if type(predictor_params) != dict:
-            raise ValueError("'predictor_params' need to be dictionary of arguments.")
+            msg = "'predictor_params' need to be dictionary of arguments."
+            raise ValueError(msg)
 
         if type(target_column) != str:
-            raise ValueError("'target_column' need to be of type 'str'.")
+            msg = "'target_column' need to be of type 'str'."
+            raise ValueError(msg)
 
         self._target_column = target_column
 
         for to_remove in ["label"]:
             if predictor_params.pop(to_remove, None) is not None:
-                logger.warning(
-                    f"Ignoring '{to_remove}' of given 'predictor_params' "
-                    "since it is already defined."
-                )
+                logger.warning(f"Ignoring '{to_remove}' of given 'predictor_params' " "since it is already defined.")
 
         super().__init__(
             TabularPredictor(
@@ -142,15 +131,14 @@ class ConformalAutoGluonClassifier(ConformalClassifier):
         self,
         X: ArrayLike,
         calibration_size: float = 0.2,
-        y: Optional[ArrayLike] = None,
+        y: ArrayLike | None = None,
         fit_params: dict = {},
-        **kwargs: Dict[str, Any],
-    ) -> Tuple[NDArray, NDArray]:
-
+        **kwargs: dict[str, Any],
+    ) -> tuple[NDArray, NDArray]:
         if y is not None:
+            msg = f"This implementation of 'ConformalClassifier' requires to be called with 'X', which should integrate the target column '{self._target_column}'."
             raise ValueError(
-                "This implementation of 'ConformalClassifier' requires to be called with 'X', "
-                f"which should integrate the target column '{self._target_column}'."
+                msg,
             )
 
         training_data_, calibration_data_ = train_test_split(X, test_size=calibration_size)
@@ -165,21 +153,20 @@ class ConformalAutoGluonClassifier(ConformalClassifier):
         self._predictor.fit(training_data_, **fit_params, calibrate=False)
 
         nonconformity_scores = self._calculate_nonconformity_scores(
-            y_hat=self._predictor.predict_proba(X_calibration, as_pandas=False)
+            y_hat=self._predictor.predict_proba(X_calibration, as_pandas=False),
         )
 
         return y_calibration, nonconformity_scores
 
-    def _get_label_to_index_mapping(self) -> Dict[Any, int]:
+    def _get_label_to_index_mapping(self) -> dict[Any, int]:
         return {x: index for index, x in enumerate(self._predictor.class_labels)}
 
     def _predict_and_calculate_nonconformity_scores(
         self,
         X: ArrayLike,
         predict_params: dict = {},
-        **kwargs: Dict[str, Any],
-    ) -> Tuple[NDArray, NDArray]:
-
+        **kwargs: dict[str, Any],
+    ) -> tuple[NDArray, NDArray]:
         y_hat = self._predictor.predict_proba(X, **predict_params, as_pandas=False)
         nonconformity_scores = self._calculate_nonconformity_scores(y_hat=y_hat)
 

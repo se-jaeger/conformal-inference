@@ -1,5 +1,3 @@
-from typing import Tuple
-
 import numpy as np
 import pandas as pd
 from numpy.typing import ArrayLike, NDArray
@@ -15,6 +13,6 @@ def coverage(predictions: NDArray, y_true: ArrayLike) -> float:
     return sum(y_in_prediction) / y_true.size
 
 
-def mean_and_std_prediction_set_size(predictions: NDArray) -> Tuple[float, float]:
+def mean_and_std_prediction_set_size(predictions: NDArray) -> tuple[float, float]:
     prediction_set_sizes = __calculate_prediction_set_sizes(predictions)
     return (prediction_set_sizes.mean(), prediction_set_sizes.std())

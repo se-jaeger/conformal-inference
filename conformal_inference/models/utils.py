@@ -1,11 +1,10 @@
-from typing import Optional, Tuple
+from typing import Optional
 
 import numpy as np
 from numpy.typing import NDArray
 
 
 def calculate_q_hat(nonconformity_scores: NDArray, confidence_level: float) -> Optional[float]:
-
     n = len(nonconformity_scores)
 
     if n == 0:
@@ -19,6 +18,7 @@ def calculate_q_hat(nonconformity_scores: NDArray, confidence_level: float) -> O
     return np.quantile(nonconformity_scores, quantile, interpolation="higher")
 
 
-def check_in_range(number: float, name: str, range: Tuple[int, int] = (0, 1)) -> None:
+def check_in_range(number: float, name: str, range: tuple[int, int] = (0, 1)) -> None:
     if number < range[0] or number > range[1]:
-        raise ValueError(f"Variable '{name}' is not valid! Need to be: 0 <= {name} <= 1")
+        msg = f"Variable '{name}' is not valid! Need to be: 0 <= {name} <= 1"
+        raise ValueError(msg)

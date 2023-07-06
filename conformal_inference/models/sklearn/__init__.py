@@ -1,7 +1,8 @@
 from sklearn.base import BaseEstimator, is_classifier, is_regressor
 from sklearn.utils.validation import check_is_fitted
 
-from .. import setup_logger
+from conformal_inference.models import setup_logger
+
 from .base import ConformalSKLearnClassifier, ConformalSKLearnRegressor, SKLearnConformalPredictor
 
 setup_logger(__name__)
@@ -29,4 +30,5 @@ def create_SKLearnConformalPredictor(
             fit=fit,
         )
     else:
-        raise Exception("Only Classifiers or Regressors from `scikit-learn` are supported!")
+        msg = "Only Classifiers or Regressors from `scikit-learn` are supported!"
+        raise Exception(msg)
