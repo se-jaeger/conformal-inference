@@ -13,15 +13,7 @@ jobs:
           python-version: "3.9"
       - name: Setup Matchers
         run: |
-          MATCHERS=.github/workflows/matchers/*.json
-          echo $MATCHERS
-
-          for matcher in $MATCHERS
-          do
-              echo adding matcher $matcher
-              echo "::add-matcher::${matcher}"
-          done
-
+          echo "::add-matcher::.github/workflows/matchers/black.json"
           echo "TERM: changing from $TERM -> xterm"
           export TERM=xterm
       - name: Install dependencies
@@ -30,60 +22,6 @@ jobs:
       - name: Run black
         run: |
           black --check .
-
-  isort:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v2
-        with:
-          python-version: "3.9"
-      - name: Setup Matchers
-        run: |
-          MATCHERS=.github/workflows/matchers/*.json
-          echo $MATCHERS
-
-          for matcher in $MATCHERS
-          do
-              echo adding matcher $matcher
-              echo "::add-matcher::${matcher}"
-          done
-
-          echo "TERM: changing from $TERM -> xterm"
-          export TERM=xterm
-      - name: Install dependencies
-        run: |
-          pip install isort
-      - name: Run isort
-        run: |
-          isort  -c --diff .
-
-  flake8:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v2
-        with:
-          python-version: "3.9"
-      - name: Setup Matchers
-        run: |
-          MATCHERS=.github/workflows/matchers/*.json
-          echo $MATCHERS
-
-          for matcher in $MATCHERS
-          do
-              echo adding matcher $matcher
-              echo "::add-matcher::${matcher}"
-          done
-
-          echo "TERM: changing from $TERM -> xterm"
-          export TERM=xterm
-      - name: Install dependencies
-        run: |
-          pip install flake8
-      - name: Run flake8
-        run: |
-          flake8 .
 
   mypy:
     runs-on: ubuntu-latest
@@ -94,15 +32,7 @@ jobs:
           python-version: "3.9"
       - name: Setup Matchers
         run: |
-          MATCHERS=.github/workflows/matchers/*.json
-          echo $MATCHERS
-
-          for matcher in $MATCHERS
-          do
-              echo adding matcher $matcher
-              echo "::add-matcher::${matcher}"
-          done
-
+          echo "::add-matcher::.github/workflows/matchers/mypy.json"
           echo "TERM: changing from $TERM -> xterm"
           export TERM=xterm
       - name: Install dependencies
@@ -111,3 +41,22 @@ jobs:
       - name: Run mypy
         run: |
           mypy --show-column-numbers .
+
+  ruff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
+        with:
+          python-version: "3.9"
+      - name: Setup Matchers
+        run: |
+          echo "::add-matcher::.github/workflows/matchers/ruff.json"
+          echo "TERM: changing from $TERM -> xterm"
+          export TERM=xterm
+      - name: Install dependencies
+        run: |
+          pip install ruff
+      - name: Run ruff
+        run: |
+          ruff .

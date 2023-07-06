@@ -1,18 +1,18 @@
 {
     "problemMatcher": [
         {
-            "code": "E",
+            "owner": "mypy",
+            "severity": "error",
             "pattern": [
                 {
                     "regexp": "^(\\S*):(\\d+):(\\d+): ([a-z]+): (.*)$",
                     "file": 1,
-                    "column": 3,
                     "line": 2,
+                    "column": 3,
                     "severity": 4,
                     "message": 5
                 }
-            ],
-            "owner": "mypy"
+            ]
         }
     ]
 }

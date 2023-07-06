@@ -1,18 +1,17 @@
 {
     "problemMatcher": [
         {
-            "severity": "warning",
+            "owner": "black",
+            "severity": "error",
             "column": 1,
             "line": 1,
-            "code": "W",
             "pattern": [
                 {
                     "regexp": "^(would reformat) (.*)$",
-                    "file": 2,
-                    "message": 1
+                    "message": 1,
+                    "file": 2
                 }
-            ],
-            "owner": "black"
+            ]
         }
     ]
 }
