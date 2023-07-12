@@ -35,7 +35,7 @@ class ConformalQuantileAutoGluonRegressor(ConformalQuantileRegressor):
 
         for to_remove in ["label", "problem_type", "quantile_levels"]:
             if predictor_params.pop(to_remove, None) is not None:
-                logger.warning(f"Ignoring '{to_remove}' of given 'predictor_params' " "since it is already defined.")
+                logger.warning(f"Ignoring '{to_remove}' of given 'predictor_params' since it is already defined.")
 
         super().__init__(
             TabularPredictor(
@@ -116,7 +116,7 @@ class ConformalAutoGluonClassifier(ConformalClassifier):
 
         for to_remove in ["label"]:
             if predictor_params.pop(to_remove, None) is not None:
-                logger.warning(f"Ignoring '{to_remove}' of given 'predictor_params' " "since it is already defined.")
+                logger.warning(f"Ignoring '{to_remove}' of given 'predictor_params' since it is already defined.")
 
         super().__init__(
             TabularPredictor(
