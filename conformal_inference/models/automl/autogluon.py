@@ -3,6 +3,7 @@ from __future__ import annotations
 from logging import getLogger
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
 from autogluon.tabular import TabularPredictor
 from sklearn.model_selection import train_test_split
 from sklearn.utils.validation import check_is_fitted

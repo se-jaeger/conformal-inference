@@ -89,6 +89,7 @@ class ConformalClassifier(ConformalPredictor):
 
     @staticmethod
     def _calculate_nonconformity_scores(y_hat: NDArray) -> NDArray:
+        y_hat = np.asarray(y_hat)
         return 1 - y_hat
 
     def _create_numpy_array_for_labels_dtype(self, shape: tuple[int, ...]) -> NDArray:
@@ -243,6 +244,8 @@ class ConformalRegressor(ConformalPredictor):
 
     @staticmethod
     def _calculate_nonconformity_scores(y: NDArray, y_hat: NDArray) -> NDArray:
+        y = np.asarray(y).ravel()
+        y_hat = np.asarray(y_hat)
         return np.abs(y - y_hat)
 
     def fit(
@@ -326,6 +329,8 @@ class ConformalQuantileRegressor(ConformalPredictor):
 
     @staticmethod
     def _calculate_nonconformity_scores(y_hat: NDArray, y: NDArray) -> NDArray:
+        y = np.asarray(y).ravel()
+        y_hat = np.asarray(y_hat)
         return np.stack((y_hat[:, 0] - y, y - y_hat[:, 2]), axis=1).max(axis=1)
 
     @staticmethod
@@ -380,6 +385,7 @@ class ConformalQuantileRegressor(ConformalPredictor):
             predict_params=predict_params,
             kwargs=kwargs,
         )
+        y_hat_quantiles = np.asarray(y_hat_quantiles)
 
         y_hat_lower_bound = y_hat_quantiles[:, 0] - half_interval
         y_hat_upper_bound = y_hat_quantiles[:, 2] + half_interval

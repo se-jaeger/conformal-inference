@@ -5,6 +5,7 @@ from numpy.typing import NDArray
 
 
 def calculate_q_hat(nonconformity_scores: NDArray, confidence_level: float) -> Optional[float]:
+    nonconformity_scores = np.asarray(nonconformity_scores)
     n = len(nonconformity_scores)
 
     if n == 0:
